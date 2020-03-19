@@ -16,6 +16,8 @@ import gevent
 from gevent import monkey,pool
 monkey.patch_all()
 
+import traceback
+
 
 class WebCrawlFromjrj(object):
     '''Crawl company news from 'http://roll.finance.sina.com.cn/finance/zq1/ssgs/index.shtml' website.
@@ -237,45 +239,15 @@ class WebCrawlFromjrj(object):
                     urlsAndDates.append((url_Part_1 + date.replace('-','')[0:6] + '/' + date.replace('-','') \
                         + '_' + str(num) + '.shtml', date))
             for url, specificDate in urlsAndDates:
-                print(url)
-                resp = requests.get(url)
-                resp.encoding = BeautifulSoup(resp.content, "lxml").original_encoding 
-                bs = BeautifulSoup(resp.text, "lxml")
-                a_list = bs.find_all('a')
-                for a in a_list:
-                    if 'href' in a.attrs and a.string and \
-                    a['href'].find('/' + specificDate.replace('-','')[0:4] + '/' + specificDate.replace('-','')[4:6] + '/') != -1:
-                        date, article, NotFoundPage = self.getUrlInfo(a['href'],specificDate)
-                        while article == '' and self.Prob >= .1 and not NotFoundPage:
-                            self.Prob -= .1
-                            date, article, NotFoundPage = self.getUrlInfo(a['href'],specificDate)
-                        self.Prob =.5
-                        if article != '':
-                            data = {'Date' : date,
-                                    'Address' : a['href'],
-                                    'Title' : a.string,
-                                    'Article' : article}
-                            self._collection.insert_one(data)
-        else:
-            urlsAndDates = []
-            url_Part_1 = 'http://stock.jrj.com.cn/xwk/'
-            url_Part_2 = '_1.shtml'
-            for date in datelst:
-                firstUrl = url_Part_1 + date.replace('-','')[0:6] + '/' + date.replace('-','') + url_Part_2
-                Nums = self.findPagesOfSpecificDate(firstUrl,date)
-                for num in range(1,Nums+1):
-                    urlsAndDates.append((url_Part_1 + date.replace('-','')[0:6] + '/' + date.replace('-','') \
-                        + '_' + str(num) + '.shtml', date))
-            for url, specificDate in urlsAndDates:
-                print(' <Re-Crawl url> ', url)
-                resp = requests.get(url)
-                resp.encoding = BeautifulSoup(resp.content, "lxml").original_encoding 
-                bs = BeautifulSoup(resp.text, "lxml")
-                a_list = bs.find_all('a')
-                for a in a_list:
-                    if 'href' in a.attrs and a.string and \
-                    a['href'].find('/' + specificDate.replace('-','')[0:4] + '/' + specificDate.replace('-','')[4:6] + '/') != -1:
-                        if a['href'] not in AddressLst:
+                try:
+                    print(url)
+                    resp = requests.get(url)
+                    resp.encoding = BeautifulSoup(resp.content, "lxml").original_encoding 
+                    bs = BeautifulSoup(resp.text, "lxml")
+                    a_list = bs.find_all('a')
+                    for a in a_list:
+                        if 'href' in a.attrs and a.string and \
+                        a['href'].find('/' + specificDate.replace('-','')[0:4] + '/' + specificDate.replace('-','')[4:6] + '/') != -1:
                             date, article, NotFoundPage = self.getUrlInfo(a['href'],specificDate)
                             while article == '' and self.Prob >= .1 and not NotFoundPage:
                                 self.Prob -= .1
@@ -287,6 +259,46 @@ class WebCrawlFromjrj(object):
                                         'Title' : a.string,
                                         'Article' : article}
                                 self._collection.insert_one(data)
+                except Exception as e:
+                    print("!!Error in handling url:", url)
+                    print("!!Skipped it")
+                    traceback.print_exc()
+        else:
+            urlsAndDates = []
+            url_Part_1 = 'http://stock.jrj.com.cn/xwk/'
+            url_Part_2 = '_1.shtml'
+            for date in datelst:
+                firstUrl = url_Part_1 + date.replace('-','')[0:6] + '/' + date.replace('-','') + url_Part_2
+                Nums = self.findPagesOfSpecificDate(firstUrl,date)
+                for num in range(1,Nums+1):
+                    urlsAndDates.append((url_Part_1 + date.replace('-','')[0:6] + '/' + date.replace('-','') \
+                        + '_' + str(num) + '.shtml', date))
+            for url, specificDate in urlsAndDates:
+                try:
+                    print(' <Re-Crawl url> ', url)
+                    resp = requests.get(url)
+                    resp.encoding = BeautifulSoup(resp.content, "lxml").original_encoding 
+                    bs = BeautifulSoup(resp.text, "lxml")
+                    a_list = bs.find_all('a')
+                    for a in a_list:
+                        if 'href' in a.attrs and a.string and \
+                        a['href'].find('/' + specificDate.replace('-','')[0:4] + '/' + specificDate.replace('-','')[4:6] + '/') != -1:
+                            if a['href'] not in AddressLst:
+                                date, article, NotFoundPage = self.getUrlInfo(a['href'],specificDate)
+                                while article == '' and self.Prob >= .1 and not NotFoundPage:
+                                    self.Prob -= .1
+                                    date, article, NotFoundPage = self.getUrlInfo(a['href'],specificDate)
+                                self.Prob =.5
+                                if article != '':
+                                    data = {'Date' : date,
+                                            'Address' : a['href'],
+                                            'Title' : a.string,
+                                            'Article' : article}
+                                    self._collection.insert_one(data)
+                except Exception as e:
+                    print("!!Error in handling url:", url)
+                    print("!!Skipped it")
+                    traceback.print_exc()
 
     def ConnDB(self):
         '''Connect mongodb.
